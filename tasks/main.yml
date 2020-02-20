@@ -1,0 +1,272 @@
+---
+- name: 'gather os specific variables'
+  include_vars: "{{ vars_file }}"
+  loop:
+    - 'default.yml'
+    - "{{ ansible_facts['os_family'] | lower }}.yml"
+    - "{{ ansible_facts['distribution'] | lower }}.yml"
+    - "{{ ansible_facts['distribution'] | lower }}-{{ ansible_facts['distribution_major_version'] }}.yml"
+    - "{{ ansible_facts['distribution'] | lower }}-{{ ansible_facts['distribution_version'] }}.yml"
+  loop_control:
+    loop_var: vars_file
+  when: "(vars_file is abs and vars_file is file) or (vars_file is not abs and (role_path ~ '/vars/' ~ vars_file) is file)"
+
+- name: 'ensure configuration consistency'
+  set_fact:
+    nextcloud_use_pkg: "{{ nextcloud_has_pkg | bool and nextcloud_use_pkg | bool }}"
+    nextcloud_database_host: "{{ nextcloud_database_host.startswith('/') | ternary('localhost:', '') ~ nextcloud_database_host }}"
+    nextcloud_enabled_apps: "{{ nextcloud_enabled_apps + nextcloud_ldap_backends | count | ternary(['user_ldap'], []) }}"
+
+- name: 'set paths to distribution package values'
+  set_fact:
+    nextcloud_web_root: "{{ nextcloud_pkg_web_root }}"
+    nextcloud_apps_path: "{{ nextcloud_pkg_apps_path }}"
+  when: "nextcloud_use_pkg | bool"
+
+- name: 'install Nextcloud using the package manager'
+  package:
+    name: "{{ [nextcloud_pkg_name] | flatten + nextcloud_enabled_apps | select('in', nextcloud_app_pkg_name) | map('extract', nextcloud_app_pkg_name) | list }}"
+    state: present
+  when: "nextcloud_use_pkg | bool"
+
+- name: 'install Nextcloud using official tarball'
+  include_tasks: install_nextcloud_tarball.yml
+  when: "not nextcloud_use_pkg | bool"
+
+- name: 'install occ wrapper script'
+  template:
+    dest: '/usr/local/sbin/occ'
+    src: 'occ.j2'
+    owner: root
+    group: root
+    mode: 0755
+
+- name: 'create Nextcloud runtime-writable directories'
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ nextcloud_user }}"
+    group: "{{ nextcloud_group }}"
+    mode: 0750
+    follow: false
+  loop:
+    - "{{ nextcloud_data_path }}"
+    - "{{ nextcloud_apps_path }}"
+    - "{{ nextcloud_log_file | dirname }}"
+
+- name: 'symlink Nextcloud apps path'
+  file:
+    path: "{{ nextcloud_web_root }}/apps-appstore"
+    state: link
+    owner: "{{ nextcloud_user }}"
+    group: "{{ nextcloud_group }}"
+    src: "{{ nextcloud_apps_path }}"
+    follow: false
+  when: "nextcloud_apps_path | regex_replace('/$', '') != nextcloud_web_root | regex_replace('/$', '') ~ '/apps-appstore'"
+
+- name: 'get enabled PHP extensions'
+  command: "{{ nextcloud_php_cli | quote }} -r 'foreach (get_loaded_extensions() as $ext) echo $ext . PHP_EOL;'"
+  environment: "{{ nextcloud_php_cli_env }}"
+  changed_when: false
+  register: _enabled_php_extensions
+
+# Note: This needs to be done before running occ for the first time, since in
+# the default configuration occ throws an error if the apps path is not
+# writable.
+- name: 'configure Nextcloud'
+  template:
+    dest: "{{ nextcloud_web_root }}/config/ansible.config.php"
+    src: 'config.php.j2'
+    owner: root
+    group: "{{ nextcloud_group }}"
+    mode: 0640
+
+- name: 'get Nextcloud installation status'
+  command: '/usr/local/sbin/occ --no-warnings status --output=json'
+  changed_when: false
+  register: _occ_status
+
+- name: 'perform Nextcloud initial setup steps'
+  block:
+  - name: 'run Nextcloud initialization (this may take a long time)'
+    command: >
+      /usr/local/sbin/occ maintenance:install --no-interaction
+      --database={{ nextcloud_database_type | quote }}
+      --database-host={{ nextcloud_database_host | quote }}
+      --database-name={{ nextcloud_database_name | quote }}
+      {% if nextcloud_database_port is defined %} --database-port={{ nextcloud_database_port }} {% endif %}
+      --database-user={{ nextcloud_database_user | quote }}
+      {% if nextcloud_database_password is defined %} --database-pass={{ nextcloud_database_password | quote }} {% endif %}
+      --database-table-prefix={{ nextcloud_database_table_prefix | quote }}
+      --admin-user={{ nextcloud_admin | quote }}
+      --admin-pass={{ nextcloud_admin_password | default(lookup('password', '/dev/null length=64')) | quote }}
+      --data-dir={{ nextcloud_data_path | quote }}
+    no_log: true
+    notify: nextcloud_installed_or_updated
+
+  - name: 'disable admin user'
+    command: "/usr/local/sbin/occ --no-interaction user:disable {{ nextcloud_admin | quote }}"
+    when: "nextcloud_admin_password is not defined"
+
+  - name: 'run any outstanding bigint conversions'
+    command: '/usr/local/sbin/occ --no-interaction db:convert-filecache-bigint'
+    register: _occ_db_convert_bigint
+    changed_when: "_occ_db_convert_bigint is not failed and 'All tables already up to date!' not in _occ_db_convert_bigint.stdout"
+
+  when: "not (_occ_status.stdout | from_json)['installed']"
+
+- name: 'update apps'
+  command: '/usr/local/sbin/occ --no-interaction app:update --all'
+  register: _app_update
+  changed_when: "_app_update is not failed and 'updated' in _app_update.stdout"
+  notify: nextcloud_installed_or_updated
+  when: "nextcloud_enabled_apps | count"
+
+- name: 'run Nextcloud upgrade procedures'
+  command: '/usr/local/sbin/occ --no-interaction upgrade'
+  register: _occ_upgrade
+  changed_when: "_occ_upgrade is not failed and 'Nextcloud is already latest version' not in _occ_upgrade.stdout"
+  notify: nextcloud_installed_or_updated
+
+- name: 'install default files for new accounts'
+  copy:
+    src: "{{ nextcloud_skeleton_files }}/"
+    dest: "{{ nextcloud_skeleton_path }}"
+    owner: root
+    group: root
+    directory_mode: 0755
+  when: "nextcloud_skeleton_files is defined"
+
+- name: 'get built-in apps'
+  slurp:
+    src: "{{ nextcloud_web_root }}/core/shipped.json"
+  register: _shipped_apps
+
+- name: 'get installed apps'
+  command: '/usr/local/sbin/occ app:list --output=json'
+  changed_when: false
+  register: _app_list
+
+- name: 'parse installed apps'
+  set_fact:
+    _apps_to_enable: "{{ nextcloud_enabled_apps | difference((_app_list.stdout | from_json)['enabled'].keys()) }}"
+    _apps_to_disable: "{{ (_app_list.stdout | from_json)['enabled'].keys() | difference(nextcloud_enabled_apps | union((_shipped_apps['content'] | b64decode | from_json)['alwaysEnabled'])) }}"
+
+- name: 'enable apps'
+  command: "/usr/local/sbin/occ --no-interaction app:enable {{ _apps_to_enable | map('quote') | join(' ') }}"
+  notify: nextcloud_installed_or_updated
+  when: "_apps_to_enable | count"
+
+- name: 'disable unused apps'
+  command: "/usr/local/sbin/occ --no-interaction app:disable {{ _apps_to_disable | map('quote') | join(' ') }}"
+  when: "_apps_to_disable | count"
+
+- name: 'install Nextcloud cron job wrapper'
+  template:
+    dest: '/usr/local/sbin/nextcloud-cron.sh'
+    src: 'nextcloud-cron.sh.j2'
+    owner: root
+    group: root
+    mode: 0755
+
+- name: 'configure Nextcloud cron job'
+  cron:
+    name: 'Nextcloud cron.php'
+    job: '/usr/local/sbin/nextcloud-cron.sh'
+    user: "{{ nextcloud_user }}"
+    state: present
+    minute: '*/5'
+    hour: '*'
+    day: '*'
+    month: '*'
+    weekday: '*'
+  register: _nextcloud_cronjob
+
+- name: 'make Nextcloud use system cron'
+  command: '/usr/local/sbin/occ --no-interaction background:cron'
+  when: "_nextcloud_cronjob is changed"
+
+- block:
+  - name: 'get current configuration'
+    command: '/usr/local/sbin/occ --no-interaction config:list --output=json'
+    changed_when: false
+    register: _config_list
+
+  - name: 'parse app-specific configuration options'
+    set_fact:
+      _app_options: "{{ _app_options | default([]) + item.value.items() | zip_longest([], fillvalue=item.key) | map('flatten') | list }}"
+    loop: "{{ nextcloud_app_options | dict2items }}"
+    loop_control:
+      label: "{{ item.key }}"
+
+  - name: 'set app-specific configuration options'
+    command: '/usr/local/sbin/occ --no-interaction config:app:set {{ option[2] | quote }} {{ option[0] | quote }} --value {{ option[1] | quote }}'
+    loop: "{{ _app_options }}"
+    loop_control:
+      loop_var: option
+      label: "{{ option[2] }}: {{ option[0] }} = {{ option[1] }}"
+    when: "(_config_list.stdout | from_json)['apps'][option[2]][option[0]] | default() != option[1] | string"
+
+  when: "nextcloud_app_options | length"
+
+- name: 'get local Nextcloud groups'
+  command: '/usr/local/sbin/occ --no-interaction group:list --output=json'
+  changed_when: false
+  register: _occ_group_list
+
+- name: 'create initial local Nextcloud groups'
+  command: "/usr/local/sbin/occ --no-interaction group:add {{ group.name | quote }}"
+  loop: "{{ nextcloud_groups }}"
+  loop_control:
+    loop_var: group
+    label: "{{ group.name }}"
+  when: "group.name not in (_occ_group_list.stdout | from_json).keys()"
+
+- name: 'get local Nextcloud user accounts'
+  command: '/usr/local/sbin/occ --no-interaction user:list --output=json'
+  changed_when: false
+  register: _occ_user_list
+
+- name: 'create initial local Nextcloud user accounts'
+  command: "/usr/local/sbin/occ --no-interaction user:add --password-from-env {% if user.display_name is defined %}--display-name='{{ user.display_name }}'{% endif %} {{ user.name | quote }}"
+  environment:
+    OC_PASS: "{{ user.password }}"
+  no_log: true
+  loop: "{{ nextcloud_users }}"
+  loop_control:
+    loop_var: user
+    label: "{{ user.name }}"
+  when: "user.name not in (_occ_user_list.stdout | from_json).keys()"
+
+- name: 'configure LDAP backends'
+  block:
+  - name: 'get configured LDAP back ends'
+    command: "/usr/local/sbin/occ --no-interaction ldap:show-config"
+    changed_when: false
+    register: _ldap_show_config
+
+  - name: 'parse configured LDAP back ends'
+    set_fact:
+      _ldap_config_ids: "{{ _ldap_show_config.stdout_lines | map('regex_search', '\\| Configuration\\s+\\| (\\S+)\\s+\\|', '\\1') | select | map('first') | list }}"
+
+  - name: 'configure LDAP back ends'
+    include_tasks: ldap_backend.yml
+    loop: "{{ nextcloud_ldap_backends }}"
+    loop_control:
+      loop_var: backend
+      index_var: i
+      label: "{{ backend.ldapHost }}"
+
+  - name: 'sync LDAP users'
+    command: '/usr/local/sbin/occ --no-interaction user:list'
+    changed_when: false
+
+  when: "nextcloud_ldap_backends | count > 0"
+
+- name: 'add users to local groups'
+  command: "/usr/local/sbin/occ --no-interaction group:adduser {{ group.0.name | quote }} {{ group.1 | quote }}"
+  loop: "{{ nextcloud_groups | subelements('users') }}"
+  loop_control:
+    loop_var: group
+    label: "{{ group.0.name }}: {{ group.1 }}"
+  when: "group.1 not in (_occ_group_list.stdout | from_json)[group.0.name] | default([])"

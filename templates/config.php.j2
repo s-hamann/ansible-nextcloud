@@ -1,0 +1,89 @@
+#jinja2: lstrip_blocks: True
+{# vim: filetype=php.jinja2 shiftwidth=2 #}
+{% macro print_value(value, indent=1) %}
+{% if value is string %}
+'{{ value }}'{# #}
+{% elif value is number %}
+{# booleans are numbers as well, the `lower` is for their benefit #}
+{{ value | lower }}{# #}
+{% elif value is mapping %}
+array(
+  {% for k,v in value.items() %}
+  {{ print_value(k, indent+1) | indent(indent * 2, true) }} => {{ print_value(v, indent+1) }},
+  {% endfor %}
+){# #}
+{% elif value is sequence %}
+array(
+  {% for v in value %}
+  {{ print_value(v, indent+1) | indent(indent * 2, true) }},
+  {% endfor %}
+){# #}
+{% else %}
+{# this should never happen as all case should already be covered #}
+{{ value }}{# #}
+{% endif %}
+{% endmacro %}
+<?php
+{{ ansible_managed | comment }}
+$CONFIG = array (
+  'datadirectory' => '{{ nextcloud_data_path }}',
+  'logfile' => '{{ nextcloud_log_file }}',
+  'skeletondirectory' => '{{ nextcloud_skeleton_path }}',
+{% block apps %}
+  'apps_paths' => array (
+    // Read-only location for apps shipped with Nextcloud
+    0 => array (
+      'path' => '{{ nextcloud_web_root }}/apps',
+      'url' => '/apps',
+      'writable' => false,
+    ),
+    // Writable location for apps installed from AppStore.
+    1 => array (
+      'path' => '{{ nextcloud_apps_path }}',
+      'url' => '/apps-appstore',
+      'writable' => true,
+    ),
+  ),
+{% endblock %}
+
+{% block caching %}
+  {% if 'apcu' in _enabled_php_extensions.stdout_lines | default([]) %}
+  'memcache.local' => '\OC\Memcache\APCu',
+  {% endif %}
+  {% if 'redis' in _enabled_php_extensions.stdout_lines | default([]) and nextcloud_redis_host %}
+  {% if 'apcu' not in _enabled_php_extensions.stdout_lines | default([]) %}
+  'memcache.local' => '\OC\Memcache\Redis',
+  {% endif %}
+  'memcache.locking' => '\OC\Memcache\Redis',
+  'redis' => array(
+    'host' => '{{ nextcloud_redis_host }}',
+    {% if not nextcloud_redis_host.startswith('/') %}
+    'port' => {{ nextcloud_redis_port }},
+    {% endif %}
+    {% if nextcloud_redis_password is defined %}
+    'password' => '{{ nextcloud_redis_password }},
+    {% endif %}
+    {% if nextcloud_redis_dbindex is defined %}
+    'dbindex' => {{ nextcloud_redis_dbindex }},
+    {% endif %}
+    'timeout' => 0.0,
+  ),
+  {% endif %}
+{% endblock %}
+
+  'trusted_domains' => array(
+    {% for domain in nextcloud_trusted_domains %}
+    '{{ domain }}',
+    {% endfor %}
+  ),
+
+  'defaultapp' => '{{ [nextcloud_default_app] | flatten | join(',') }}',
+
+  'updatechecker' => {{ not nextcloud_use_pkg }},
+  'upgrade.disable-web' => true,
+
+  {% for key, value in nextcloud_extra_options.items() %}
+  '{{ key }}' => {{ print_value(value) }},
+  {% endfor %}
+
+);

@@ -1,0 +1,28 @@
+---
+nextcloud_use_pkg: true
+nextcloud_web_root: '/var/www/nextcloud/'
+nextcloud_data_path: '/var/lib/nextcloud/data/'
+nextcloud_apps_path: "{{ nextcloud_web_root }}/apps-appstore/"
+nextcloud_log_file: '/var/log/nextcloud/nextcloud.log'
+nextcloud_skeleton_path: '/var/lib/nextcloud/skeleton/'
+nextcloud_php_cli_env: {}
+nextcloud_user: www-data
+nextcloud_group: www-data
+nextcloud_admin: admin
+nextcloud_users: []
+nextcloud_groups: []
+nextcloud_database_type: sqlite
+nextcloud_database_host: localhost
+nextcloud_database_name: nextcloud
+nextcloud_database_user: nextcloud
+nextcloud_database_table_prefix: ''
+nextcloud_trusted_domains:
+  - "{{ ansible_facts['hostname'] }}"
+  - "{{ ansible_facts['fqdn'] }}"
+nextcloud_redis_host: localhost
+nextcloud_redis_port: 6379
+nextcloud_default_app: files
+nextcloud_enabled_apps: []
+nextcloud_extra_options: {}
+nextcloud_app_options: {}
+nextcloud_ldap_backends: []

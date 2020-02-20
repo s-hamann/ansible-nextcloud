@@ -1,0 +1,6 @@
+{# vim: filetype=sh.jinja2 #}
+#!/bin/sh
+{% for var, val in nextcloud_php_cli_env.items() %}
+export {{ var }}={{ val | quote }}
+{% endfor %}
+{{ nextcloud_php_cli | quote }} -f {{ nextcloud_web_root | quote }}/cron.php

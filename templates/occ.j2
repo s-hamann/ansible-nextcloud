@@ -1,0 +1,7 @@
+{# vim: filetype=sh.jinja2 #}
+#!/bin/sh
+{% for var, val in nextcloud_php_cli_env.items() %}
+export {{ var }}={{ val | quote }}
+{% endfor %}
+cd -- {{ nextcloud_web_root | quote }}
+su -s /bin/sh -c "{{ nextcloud_php_cli | quote }} occ $(printf "'%s' " "$@")" {{ nextcloud_user | quote }}
