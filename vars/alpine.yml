@@ -16,11 +16,11 @@ nextcloud_app_pkg_name:
   files_versions: nextcloud-files_versions
   files_videoplayer: nextcloud-files_videoplayer
   firstrunwizard: nextcloud-firstrunwizard
-  gallery: nextcloud-gallery
   logreader: nextcloud-logreader
   nextcloud_announcements: nextcloud-nextcloud_announcements
   notifications: nextcloud-notifications
   password_policy: nextcloud-password_policy
+  photos: nextcloud-photos
   privacy: nextcloud-privacy
   recommendations: nextcloud-recommendations
   serverinfo: nextcloud-serverinfo
