@@ -113,6 +113,11 @@
     register: _occ_db_convert_bigint
     changed_when: "_occ_db_convert_bigint is not failed and 'All tables already up to date!' not in _occ_db_convert_bigint.stdout"
 
+  - name: 'add any database indices'
+    command: '/usr/local/sbin/occ --no-interaction db:add-missing-indices'
+    register: _occ_db_add_indices
+    changed_when: "_occ_db_add_indices is not failed and 'Adding additional' in _occ_db_add_indices.stdout"
+
   when: "not (_occ_status.stdout | from_json)['installed']"
 
 - name: 'update apps'
