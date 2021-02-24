@@ -108,12 +108,22 @@
     command: "/usr/local/sbin/occ --no-interaction user:disable {{ nextcloud_admin | quote }}"
     when: "nextcloud_admin_password is not defined"
 
+  - name: 'add missing database columns'
+    command: '/usr/local/sbin/occ --no-interaction db:add-missing-columns'
+    register: _occ_db_add_columns
+    changed_when: "_occ_db_add_columns is not failed and 'Adding additional' in _occ_db_add_columns.stdout"
+
   - name: 'run any outstanding bigint conversions'
     command: '/usr/local/sbin/occ --no-interaction db:convert-filecache-bigint'
     register: _occ_db_convert_bigint
     changed_when: "_occ_db_convert_bigint is not failed and 'All tables already up to date!' not in _occ_db_convert_bigint.stdout"
 
-  - name: 'add any database indices'
+  - name: 'add missing database primary keys'
+    command: '/usr/local/sbin/occ --no-interaction db:add-missing-primary-keys'
+    register: _occ_db_add_primary_keys
+    changed_when: "_occ_db_add_primary_keys is not failed and 'Adding primary key' in _occ_db_add_primary_keys.stdout"
+
+  - name: 'add missing database indices'
     command: '/usr/local/sbin/occ --no-interaction db:add-missing-indices'
     register: _occ_db_add_indices
     changed_when: "_occ_db_add_indices is not failed and 'Adding additional' in _occ_db_add_indices.stdout"
