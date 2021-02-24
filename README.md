@@ -155,7 +155,7 @@ As these dependencies are complex software of their own, they are not considered
 Example Configuration
 ---------------------
 
-The following is short example for some of the configuration options this role provides:
+The following is a short example for some of the configuration options this role provides:
 
 ```yaml
 nextcloud_database_type: mysql
