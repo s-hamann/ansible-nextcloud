@@ -68,6 +68,7 @@
   command: "{{ nextcloud_php_cli | quote }} -r 'foreach (get_loaded_extensions() as $ext) echo $ext . PHP_EOL;'"
   environment: "{{ nextcloud_php_cli_env }}"
   changed_when: false
+  check_mode: false
   register: _enabled_php_extensions
 
 # Note: This needs to be done before running occ for the first time, since in
@@ -84,6 +85,7 @@
 - name: 'get Nextcloud installation status'
   command: '/usr/local/sbin/occ --no-warnings status --output=json'
   changed_when: false
+  check_mode: false
   register: _occ_status
 
 - name: 'perform Nextcloud initial setup steps'
@@ -160,6 +162,7 @@
 - name: 'get installed apps'
   command: '/usr/local/sbin/occ app:list --output=json'
   changed_when: false
+  check_mode: false
   register: _app_list
 
 - name: 'parse installed apps'
@@ -205,6 +208,7 @@
   - name: 'get current configuration'
     command: '/usr/local/sbin/occ --no-interaction config:list --output=json'
     changed_when: false
+    check_mode: false
     register: _config_list
 
   - name: 'parse app-specific configuration options'
@@ -227,6 +231,7 @@
 - name: 'get local Nextcloud groups'
   command: '/usr/local/sbin/occ --no-interaction group:list --output=json'
   changed_when: false
+  check_mode: false
   register: _occ_group_list
 
 - name: 'create initial local Nextcloud groups'
@@ -240,6 +245,7 @@
 - name: 'get local Nextcloud user accounts'
   command: '/usr/local/sbin/occ --no-interaction user:list --output=json'
   changed_when: false
+  check_mode: false
   register: _occ_user_list
 
 - name: 'create initial local Nextcloud user accounts'
@@ -258,6 +264,7 @@
   - name: 'get configured LDAP back ends'
     command: "/usr/local/sbin/occ --no-interaction ldap:show-config"
     changed_when: false
+    check_mode: false
     register: _ldap_show_config
 
   - name: 'parse configured LDAP back ends'

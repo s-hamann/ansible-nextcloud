@@ -11,6 +11,7 @@
 - name: 'get current LDAP back end configuration'
   command: "/usr/local/sbin/occ --no-interaction ldap:show-config {{ _ldap_config_id }}"
   changed_when: false
+  check_mode: false
   register: _ldap_show_config
   when: "_ldap_config_ids[i] is defined"
 
