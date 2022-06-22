@@ -15,7 +15,6 @@ nextcloud_database_type: sqlite
 nextcloud_database_host: localhost
 nextcloud_database_name: nextcloud
 nextcloud_database_user: nextcloud
-nextcloud_database_table_prefix: ''
 nextcloud_trusted_domains:
   - "{{ ansible_facts['hostname'] }}"
   - "{{ ansible_facts['fqdn'] }}"

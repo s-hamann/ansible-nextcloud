@@ -99,7 +99,6 @@
       {% if nextcloud_database_port is defined %} --database-port={{ nextcloud_database_port }} {% endif %}
       --database-user={{ nextcloud_database_user | quote }}
       {% if nextcloud_database_password is defined %} --database-pass={{ nextcloud_database_password | quote }} {% endif %}
-      --database-table-prefix={{ nextcloud_database_table_prefix | quote }}
       --admin-user={{ nextcloud_admin | quote }}
       --admin-pass={{ nextcloud_admin_password | default(lookup('password', '/dev/null length=64')) | quote }}
       --data-dir={{ nextcloud_data_path | quote }}

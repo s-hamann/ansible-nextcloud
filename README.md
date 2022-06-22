@@ -74,10 +74,6 @@ Role Variables
 * `nextcloud_database_name`  
   The name of the database for Nextcloud.
   Defaults to `nextcloud`.
-* `nextcloud_database_table_prefix`  
-  A prefix string to prepend to all database tables names.
-  Only useful if other applications share the same database (i.e. `nextcloud_database_name`, not the database server).
-  Empty by default.
 * `nextcloud_enabled_apps`  
   A list of Nextcloud apps to enable.
   All apps in this list are automatically downloaded from the app store, if necessary.
