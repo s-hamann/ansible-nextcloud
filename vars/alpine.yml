@@ -1,11 +1,9 @@
 ---
 nextcloud_has_pkg: true
 nextcloud_app_pkg_name:
-  accessibility: nextcloud-accessibility
   activity: nextcloud-activity
   admin_audit: nextcloud-admin_audit
   circles: nextcloud-circles
-  cloud_federation_api: nextcloud-cloud_federation_api
   comments: nextcloud-comments
   dashboard: nextcloud-dashboard
   encryption: nextcloud-encryption
@@ -16,7 +14,6 @@ nextcloud_app_pkg_name:
   files_sharing: nextcloud-files_sharing
   files_trashbin: nextcloud-files_trashbin
   files_versions: nextcloud-files_versions
-  files_videoplayer: nextcloud-files_videoplayer
   firstrunwizard: nextcloud-firstrunwizard
   logreader: nextcloud-logreader
   nextcloud_announcements: nextcloud-nextcloud_announcements
@@ -31,8 +28,8 @@ nextcloud_app_pkg_name:
   survey_client: nextcloud-survey_client
   systemtags: nextcloud-systemtags
   text: nextcloud-text
-  theming: nextcloud-theming
   user_ldap: nextcloud-user_ldap
+  user_status: nextcloud-user_status
   weather_status: nextcloud-weather_status
 nextcloud_pkg_web_root: '/usr/share/webapps/nextcloud'
 nextcloud_pkg_apps_path: '/var/lib/nextcloud/apps'
