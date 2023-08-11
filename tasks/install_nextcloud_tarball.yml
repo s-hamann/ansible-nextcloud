@@ -22,7 +22,7 @@
 
   - name: 'determine latest version of Nextcloud'
     set_fact:
-      nextcloud_version: "{{ _nextcloud_releases.content | regex_findall('(?<=\"nextcloud-)[0-9]+\\.[0-9]+\\.[0-9]+(?=\\.tar\\.bz2\")') | sort_versions | last }}"
+      nextcloud_version: "{{ _nextcloud_releases.content | regex_findall('(?<=\"nextcloud-)[0-9]+\\.[0-9]+\\.[0-9]+(?=\\.tar\\.bz2\")') | community.general.version_sort | last }}"
 
   when: "nextcloud_version is not defined"
 

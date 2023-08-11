@@ -7,7 +7,7 @@ It is also capable of installing, enabling and configuring additional apps, crea
 Requirements
 ------------
 
-This role requires Ansible 2.8 but has no further requirements on the controller.
+This role requires Ansible 2.10 and the `community.general` collection.
 
 Role Variables
 --------------
