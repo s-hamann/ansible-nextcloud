@@ -73,8 +73,14 @@
     diff: false
     when: "_tmpdir is not skipped"
 
-  - name: 'get the PGP keys'
-    command: "gpg --keyserver hkps://hkps.pool.sks-keyservers.net --no-default-keyring --keyring trustedkeys.kbx --recv-key {{ nextcloud_pgp_fingerprint | quote }}"
+  - name: 'get the PGP key'
+    get_url:
+      url: 'https://nextcloud.com/nextcloud.asc'
+      dest: "{{ _tmpdir.path }}"
+    when: "_tmpdir is not skipped"
+
+  - name: 'import the PGP key'
+    command: "gpg --no-default-keyring --keyring trustedkeys.kbx --import {{ _tmpdir.path }}/nextcloud.asc"
     environment:
       GNUPGHOME: "{{ _tmpdir.path }}/.gnupg"
     register: '_gpg_recv_key'
