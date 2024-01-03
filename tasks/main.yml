@@ -62,7 +62,7 @@
     group: "{{ nextcloud_group }}"
     src: "{{ nextcloud_apps_path }}"
     follow: false
-  when: "nextcloud_apps_path | regex_replace('/$', '') != nextcloud_web_root | regex_replace('/$', '') ~ '/apps-appstore'"
+  when: "nextcloud_apps_path | regex_replace('/+$', '') != (nextcloud_web_root | regex_replace('/+$', '')) ~ '/apps-appstore'"
 
 - name: 'get enabled PHP extensions'
   command: "{{ nextcloud_php_cli | quote }} -r 'foreach (get_loaded_extensions() as $ext) echo $ext . PHP_EOL;'"

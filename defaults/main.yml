@@ -2,7 +2,7 @@
 nextcloud_use_pkg: true
 nextcloud_web_root: '/var/www/nextcloud/'
 nextcloud_data_path: '/var/lib/nextcloud/data/'
-nextcloud_apps_path: "{{ nextcloud_web_root }}/apps-appstore/"
+nextcloud_apps_path: "{{ nextcloud_web_root | ansible.builtin.regex_replace('/+$', '') }}/apps-appstore/"
 nextcloud_log_file: '/var/log/nextcloud/nextcloud.log'
 nextcloud_skeleton_path: '/var/lib/nextcloud/skeleton/'
 nextcloud_php_cli: php
