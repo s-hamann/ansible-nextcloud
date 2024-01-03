@@ -5,6 +5,7 @@ nextcloud_data_path: '/var/lib/nextcloud/data/'
 nextcloud_apps_path: "{{ nextcloud_web_root }}/apps-appstore/"
 nextcloud_log_file: '/var/log/nextcloud/nextcloud.log'
 nextcloud_skeleton_path: '/var/lib/nextcloud/skeleton/'
+nextcloud_php_cli: php
 nextcloud_php_cli_env: {}
 nextcloud_user: www-data
 nextcloud_group: www-data
