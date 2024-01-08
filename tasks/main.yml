@@ -53,6 +53,7 @@
     - "{{ nextcloud_data_path }}"
     - "{{ nextcloud_apps_path }}"
     - "{{ nextcloud_log_file | dirname }}"
+    - "{{ nextcloud_web_root }}/core/img/filetypes"
 
 - name: 'symlink Nextcloud apps path'
   file:
