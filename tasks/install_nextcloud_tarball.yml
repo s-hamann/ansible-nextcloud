@@ -19,6 +19,7 @@
       url: "{{ nextcloud_base_url }}"
       return_content: true
     register: _nextcloud_releases
+    check_mode: false
 
   - name: 'determine latest version of Nextcloud'
     set_fact:
@@ -120,14 +121,15 @@
       follow: false
       recurse: true
     register: _nextcloud_files
+    when: "_tmpdir is not skipped"
 
   - name: 'remove old files'
     file:
       path: "{{ filename }}"
       state: absent
-    loop: "{{ _nextcloud_files['files'] | map(attribute='path') | difference(_nextcloud_tar.files | map('regex_replace', '^(.*)$', nextcloud_web_root | regex_replace('/$', '') ~ '/\\1')) | list }}"
+    loop: "{{ _nextcloud_files['files'] | map(attribute='path') | difference(_nextcloud_tar['files'] | map('regex_replace', '^(.*)$', nextcloud_web_root | regex_replace('/$', '') ~ '/\\1')) | list }}"
     loop_control:
       loop_var: filename
-    when: "filename | regex_replace(nextcloud_web_root | regex_escape ~ '?/([^/]+)/.*', '\\\\1') not in ['apps-appstore', 'config', 'data']"
+    when: "_tmpdir is not skipped and filename | regex_replace(nextcloud_web_root | regex_escape ~ '?/([^/]+)/.*', '\\\\1') not in ['apps-appstore', 'config', 'data']"
 
   when: "nextcloud_version != _current_nextcloud_version | default"
