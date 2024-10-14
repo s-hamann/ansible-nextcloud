@@ -120,6 +120,7 @@
       paths: "{{ nextcloud_web_root }}"
       follow: false
       recurse: true
+      hidden: true
     register: _nextcloud_files
     when: "_tmpdir is not skipped"
 
