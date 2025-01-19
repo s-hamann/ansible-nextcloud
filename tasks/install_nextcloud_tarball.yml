@@ -13,19 +13,19 @@
     name: "{{ nextcloud_dependencies }}"
     state: present
 
-- block:
-  - name: 'get available versions of Nextcloud'
-    uri:
-      url: "{{ nextcloud_base_url }}"
-      return_content: true
-    register: _nextcloud_releases
-    check_mode: false
-
-  - name: 'determine latest version of Nextcloud'
-    set_fact:
-      nextcloud_version: "{{ _nextcloud_releases.content | regex_findall('(?<=\"nextcloud-)[0-9]+\\.[0-9]+\\.[0-9]+(?=\\.tar\\.bz2\")') | community.general.version_sort | last }}"
-
+- name: 'Get latest version of Nextcloud'
   when: "nextcloud_version is not defined"
+  block:
+    - name: 'get available versions of Nextcloud'
+      uri:
+        url: "{{ nextcloud_base_url }}"
+      return_content: true
+      register: _nextcloud_releases
+      check_mode: false
+
+    - name: 'determine latest version of Nextcloud'
+      set_fact:
+        nextcloud_version: "{{ _nextcloud_releases.content | regex_findall('(?<=\"nextcloud-)[0-9]+\\.[0-9]+\\.[0-9]+(?=\\.tar\\.bz2\")') | community.general.version_sort | last }}"
 
 - name: 'get currently installed version of Nextcloud'
   command: '/usr/local/sbin/occ --no-interaction status --output=json'
@@ -40,97 +40,96 @@
   when: "_occ_status is not failed"
 
 - name: "download and install Nextcloud {{ nextcloud_version }}"
+  when: "nextcloud_version != _current_nextcloud_version | default"
   block:
 
-  - name: 'create temporary directory'
-    tempfile:
-      state: directory
-    diff: false
-    register: _tmpdir
-    notify: 'nextcloud_remove_tmpdir'
+    - name: 'create temporary directory'
+      tempfile:
+        state: directory
+      diff: false
+      register: _tmpdir
+      notify: 'nextcloud_remove_tmpdir'
 
-  - name: 'determine file name'
-    set_fact:
-      _filename: "nextcloud-{{ nextcloud_version }}.tar.bz2"
+    - name: 'determine file name'
+      set_fact:
+        _filename: "nextcloud-{{ nextcloud_version }}.tar.bz2"
 
-  - name: 'download Nextcloud'
-    get_url:
-      url: "{{ nextcloud_base_url }}/{{ filename }}"
-      dest: "{{ _tmpdir.path }}"
-    loop:
-      - "{{ _filename }}"
-      - "{{ _filename }}.asc"
-    loop_control:
-      loop_var: filename
-    when: "_tmpdir is not skipped"
+    - name: 'download Nextcloud'
+      get_url:
+        url: "{{ nextcloud_base_url }}/{{ filename }}"
+        dest: "{{ _tmpdir.path }}"
+      loop:
+        - "{{ _filename }}"
+        - "{{ _filename }}.asc"
+      loop_control:
+        loop_var: filename
+      when: "_tmpdir is not skipped"
 
-  - name: 'create temporary GnuPG directory'
-    file:
-      path: "{{ _tmpdir.path }}/.gnupg"
-      state: directory
-      owner: root
-      group: root
-      mode: 0700
-    diff: false
-    when: "_tmpdir is not skipped"
+    - name: 'create temporary GnuPG directory'
+      file:
+        path: "{{ _tmpdir.path }}/.gnupg"
+        state: directory
+        owner: root
+        group: root
+        mode: 0700
+      diff: false
+      when: "_tmpdir is not skipped"
 
-  - name: 'get the PGP key'
-    get_url:
-      url: 'https://nextcloud.com/nextcloud.asc'
-      dest: "{{ _tmpdir.path }}"
-    when: "_tmpdir is not skipped"
+    - name: 'get the PGP key'
+      get_url:
+        url: 'https://nextcloud.com/nextcloud.asc'
+        dest: "{{ _tmpdir.path }}"
+      when: "_tmpdir is not skipped"
 
-  - name: 'import the PGP key'
-    command: "gpg --no-default-keyring --keyring trustedkeys.kbx --import {{ _tmpdir.path }}/nextcloud.asc"
-    environment:
-      GNUPGHOME: "{{ _tmpdir.path }}/.gnupg"
-    register: '_gpg_recv_key'
-    changed_when: "_gpg_recv_key is not failed and 'imported:' in _gpg_recv_key.stderr"
-    when: "_tmpdir is not skipped"
+    - name: 'import the PGP key'
+      command: "gpg --no-default-keyring --keyring trustedkeys.kbx --import {{ _tmpdir.path }}/nextcloud.asc"
+      environment:
+        GNUPGHOME: "{{ _tmpdir.path }}/.gnupg"
+      register: '_gpg_recv_key'
+      changed_when: "_gpg_recv_key is not failed and 'imported:' in _gpg_recv_key.stderr"
+      when: "_tmpdir is not skipped"
 
-  - name: 'verify signature'
-    command: "gpgv '{{ _tmpdir.path }}/{{ _filename }}.asc' '{{ _tmpdir.path }}/{{ _filename }}'"
-    environment:
-      GNUPGHOME: "{{ _tmpdir.path }}/.gnupg"
-    changed_when: false
-    when: "_tmpdir is not skipped"
+    - name: 'verify signature'
+      command: "gpgv '{{ _tmpdir.path }}/{{ _filename }}.asc' '{{ _tmpdir.path }}/{{ _filename }}'"
+      environment:
+        GNUPGHOME: "{{ _tmpdir.path }}/.gnupg"
+      changed_when: false
+      when: "_tmpdir is not skipped"
 
-  - name: 'install Nextcloud'
-    unarchive:
-      dest: "{{ nextcloud_web_root }}"
-      src: "{{ _tmpdir.path }}/{{ _filename }}"
-      remote_src: true
-      extra_opts: '--strip-components=1'
-      owner: root
-      group: root
-      list_files: true
-    register: _nextcloud_tar
-    when: "_tmpdir is not skipped"
+    - name: 'install Nextcloud'
+      unarchive:
+        dest: "{{ nextcloud_web_root }}"
+        src: "{{ _tmpdir.path }}/{{ _filename }}"
+        remote_src: true
+        extra_opts: '--strip-components=1'
+        owner: root
+        group: root
+        list_files: true
+      register: _nextcloud_tar
+      when: "_tmpdir is not skipped"
 
-  - name: 'make config directory writable for Nextcloud'
-    file:
-      path: "{{ nextcloud_web_root }}/config"
-      state: directory
-      owner: "{{ nextcloud_user }}"
-      group: "{{ nextcloud_group }}"
-      mode: 0755
+    - name: 'make config directory writable for Nextcloud'
+      file:
+        path: "{{ nextcloud_web_root }}/config"
+        state: directory
+        owner: "{{ nextcloud_user }}"
+        group: "{{ nextcloud_group }}"
+        mode: 0755
 
-  - name: 'enumerate web root content'
-    find:
-      paths: "{{ nextcloud_web_root }}"
-      follow: false
-      recurse: true
-      hidden: true
-    register: _nextcloud_files
-    when: "_tmpdir is not skipped"
+    - name: 'enumerate web root content'
+      find:
+        paths: "{{ nextcloud_web_root }}"
+        follow: false
+        recurse: true
+        hidden: true
+      register: _nextcloud_files
+      when: "_tmpdir is not skipped"
 
-  - name: 'remove old files'
-    file:
-      path: "{{ filename }}"
-      state: absent
-    loop: "{{ _nextcloud_files['files'] | map(attribute='path') | difference(_nextcloud_tar['files'] | map('regex_replace', '^(.*)$', nextcloud_web_root | regex_replace('/$', '') ~ '/\\1')) | list }}"
-    loop_control:
-      loop_var: filename
-    when: "_tmpdir is not skipped and filename | regex_replace(nextcloud_web_root | regex_escape ~ '?/([^/]+)/.*', '\\\\1') not in ['apps-appstore', 'config', 'data']"
-
-  when: "nextcloud_version != _current_nextcloud_version | default"
+    - name: 'remove old files'
+      file:
+        path: "{{ filename }}"
+        state: absent
+      loop: "{{ _nextcloud_files['files'] | map(attribute='path') | difference(_nextcloud_tar['files'] | map('regex_replace', '^(.*)$', nextcloud_web_root | regex_replace('/$', '') ~ '/\\1')) | list }}"
+      loop_control:
+        loop_var: filename
+      when: "_tmpdir is not skipped and filename | regex_replace(nextcloud_web_root | regex_escape ~ '?/([^/]+)/.*', '\\\\1') not in ['apps-appstore', 'config', 'data']"
