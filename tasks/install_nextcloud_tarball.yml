@@ -19,7 +19,7 @@
     - name: 'get available versions of Nextcloud'
       uri:
         url: "{{ nextcloud_base_url }}"
-      return_content: true
+        return_content: true
       register: _nextcloud_releases
       check_mode: false
 
