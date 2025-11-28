@@ -8,56 +8,62 @@
 # * extracting the archive to the web root
 # * removing any files not from the archive (usually old files)
 
-- name: 'install dependencies'
-  package:
+- name: 'Install dependencies'
+  ansible.builtin.package:
     name: "{{ nextcloud_dependencies }}"
     state: present
 
 - name: 'Get latest version of Nextcloud'
   when: "nextcloud_version is not defined"
   block:
-    - name: 'get available versions of Nextcloud'
-      uri:
+    - name: 'Get available versions of Nextcloud'
+      ansible.builtin.uri:
         url: "{{ nextcloud_base_url }}"
         return_content: true
       register: _nextcloud_releases
       check_mode: false
 
-    - name: 'determine latest version of Nextcloud'
-      set_fact:
-        nextcloud_version: "{{ _nextcloud_releases.content | regex_findall('(?<=\"nextcloud-)[0-9]+\\.[0-9]+\\.[0-9]+(?=\\.tar\\.bz2\")') | community.general.version_sort | last }}"
+    - name: 'Determine latest version of Nextcloud'
+      ansible.builtin.set_fact:
+        nextcloud_version: "{{ _nextcloud_releases.content | ansible.builtin.regex_findall('(?<=\"nextcloud-)[0-9]+\\.[0-9]+\\.[0-9]+(?=\\.tar\\.bz2\")') | community.general.version_sort | last }}"
 
-- name: 'get currently installed version of Nextcloud'
-  command: '/usr/local/sbin/occ --no-interaction status --output=json'
+- name: 'Get currently installed version of Nextcloud'
+  ansible.builtin.command:
+    argv:
+      - '/usr/local/sbin/occ'
+      - --no-interaction
+      - status
+      - '--output=json'
   check_mode: false
   changed_when: false
   ignore_errors: true
   register: _occ_status
 
-- name: 'determine version number'
-  set_fact:
-    _current_nextcloud_version: "{{ (_occ_status.stdout | from_json)['versionstring'] }}"
+- name: 'Determine version number'
+  ansible.builtin.set_fact:
+    _current_nextcloud_version: "{{ (_occ_status.stdout | ansible.builtin.from_json)['versionstring'] }}"
   when: "_occ_status is not failed"
 
-- name: "download and install Nextcloud {{ nextcloud_version }}"
+- name: "Download and install Nextcloud {{ nextcloud_version }}"
   when: "nextcloud_version != _current_nextcloud_version | default"
   block:
 
-    - name: 'create temporary directory'
-      tempfile:
+    - name: 'Create temporary directory'
+      ansible.builtin.tempfile:
         state: directory
       diff: false
       register: _tmpdir
-      notify: 'nextcloud_remove_tmpdir'
+      notify: nextcloud_remove_tmpdir
 
-    - name: 'determine file name'
-      set_fact:
+    - name: 'Determine file name'
+      ansible.builtin.set_fact:
         _filename: "nextcloud-{{ nextcloud_version }}.tar.bz2"
 
-    - name: 'download Nextcloud'
-      get_url:
+    - name: 'Download Nextcloud'
+      ansible.builtin.get_url:
         url: "{{ nextcloud_base_url }}/{{ filename }}"
         dest: "{{ _tmpdir.path }}"
+        mode: '0600'
       loop:
         - "{{ _filename }}"
         - "{{ _filename }}.asc"
@@ -65,39 +71,51 @@
         loop_var: filename
       when: "_tmpdir is not skipped"
 
-    - name: 'create temporary GnuPG directory'
-      file:
+    - name: 'Create temporary GnuPG directory'
+      ansible.builtin.file:
         path: "{{ _tmpdir.path }}/.gnupg"
         state: directory
         owner: root
         group: root
-        mode: 0700
+        mode: '0700'
       diff: false
       when: "_tmpdir is not skipped"
 
-    - name: 'get the PGP key'
-      get_url:
+    - name: 'Get the PGP key'
+      ansible.builtin.get_url:
         url: 'https://nextcloud.com/nextcloud.asc'
         dest: "{{ _tmpdir.path }}"
+        mode: '0600'
       when: "_tmpdir is not skipped"
 
-    - name: 'import the PGP key'
-      command: "gpg --no-default-keyring --keyring trustedkeys.kbx --import {{ _tmpdir.path }}/nextcloud.asc"
+    - name: 'Import the PGP key'
+      ansible.builtin.command:
+        argv:
+          - gpg
+          - --no-default-keyring
+          - --keyring
+          - trustedkeys.kbx
+          - --import
+          - "{{ _tmpdir.path }}/nextcloud.asc"
       environment:
         GNUPGHOME: "{{ _tmpdir.path }}/.gnupg"
-      register: '_gpg_recv_key'
+      register: _gpg_recv_key
       changed_when: "_gpg_recv_key is not failed and 'imported:' in _gpg_recv_key.stderr"
       when: "_tmpdir is not skipped"
 
-    - name: 'verify signature'
-      command: "gpgv '{{ _tmpdir.path }}/{{ _filename }}.asc' '{{ _tmpdir.path }}/{{ _filename }}'"
+    - name: 'Verify signature'
+      ansible.builtin.command:
+        argv:
+          - gpgv
+          - "{{ _tmpdir.path }}/{{ _filename }}.asc"
+          - "{{ _tmpdir.path }}/{{ _filename }}"
       environment:
         GNUPGHOME: "{{ _tmpdir.path }}/.gnupg"
       changed_when: false
       when: "_tmpdir is not skipped"
 
-    - name: 'install Nextcloud'
-      unarchive:
+    - name: 'Install Nextcloud'
+      ansible.builtin.unarchive:
         dest: "{{ nextcloud_web_root }}"
         src: "{{ _tmpdir.path }}/{{ _filename }}"
         remote_src: true
@@ -108,16 +126,16 @@
       register: _nextcloud_tar
       when: "_tmpdir is not skipped"
 
-    - name: 'make config directory writable for Nextcloud'
-      file:
+    - name: 'Make config directory writable for Nextcloud'
+      ansible.builtin.file:
         path: "{{ nextcloud_web_root }}/config"
         state: directory
         owner: "{{ nextcloud_user }}"
         group: "{{ nextcloud_group }}"
-        mode: 0755
+        mode: '0755'
 
-    - name: 'enumerate web root content'
-      find:
+    - name: 'Enumerate web root content'
+      ansible.builtin.find:
         paths: "{{ nextcloud_web_root }}"
         follow: false
         recurse: true
@@ -125,12 +143,12 @@
       register: _nextcloud_files
       when: "_tmpdir is not skipped"
 
-    - name: 'remove old files'
-      file:
+    - name: 'Remove old files'
+      ansible.builtin.file:
         path: "{{ filename }}"
         follow: false
         state: absent
-      loop: "{{ _nextcloud_files['files'] | map(attribute='path') | difference(_nextcloud_tar['files'] | map('regex_replace', '^(.*)$', nextcloud_web_root | regex_replace('/$', '') ~ '/\\1')) | list }}"
+      loop: "{{ _nextcloud_files['files'] | map(attribute='path') | ansible.builtin.difference(_nextcloud_tar['files'] | map('ansible.builtin.regex_replace', '^(.*)$', nextcloud_web_root | ansible.builtin.regex_replace('/$', '') ~ '/\\1')) | list }}"
       loop_control:
         loop_var: filename
-      when: "_tmpdir is not skipped and filename | regex_replace(nextcloud_web_root | regex_escape ~ '?/([^/]+)/.*', '\\\\1') not in ['apps-appstore', 'config', 'data']"
+      when: "_tmpdir is not skipped and filename | ansible.builtin.regex_replace(nextcloud_web_root | ansible.builtin.regex_escape ~ '?/([^/]+)/.*', '\\\\1') not in ['apps-appstore', 'config', 'data']"

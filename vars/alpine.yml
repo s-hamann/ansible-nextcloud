@@ -33,4 +33,4 @@ nextcloud_app_pkg_name:
   weather_status: nextcloud-weather_status
 nextcloud_pkg_web_root: '/usr/share/webapps/nextcloud'
 nextcloud_pkg_apps_path: '/var/lib/nextcloud/apps'
-nextcloud_gnupg_package: 'gnupg'
+nextcloud_gnupg_package: gnupg

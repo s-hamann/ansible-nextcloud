@@ -1,43 +1,75 @@
 ---
-- name: 'create empty config'
-  command: '/usr/local/sbin/occ --no-interaction ldap:create-empty-config --only-print-prefix'
+- name: 'Create empty config'
+  ansible.builtin.command:
+    argv:
+      - '/usr/local/sbin/occ'
+      - --no-interaction
+      - ldap:create-empty-config
+      - --only-print-prefix
+  changed_when: true
   register: _ldap_create_empty_config
   when: "_ldap_config_ids[i] is not defined"
 
-- name: 'determine LDAP config ID'
-  set_fact:
+- name: 'Determine LDAP config ID'
+  ansible.builtin.set_fact:
     _ldap_config_id: "{{ _ldap_config_ids[i] | default(false) or _ldap_create_empty_config.stdout }}"
 
-- name: 'get current LDAP back end configuration'
-  command: "/usr/local/sbin/occ --no-interaction ldap:show-config {{ _ldap_config_id }}"
+- name: 'Get current LDAP back end configuration'
+  ansible.builtin.command:
+    argv:
+      - '/usr/local/sbin/occ'
+      - --no-interaction
+      - ldap:show-config
+      - "{{ _ldap_config_id }}"
   changed_when: false
   check_mode: false
   register: _ldap_show_config
   when: "_ldap_config_ids[i] is defined"
 
-- name: 'parse current LDAP config'
-  set_fact:
-    _ldap_config: "{{ _ldap_config | default({}) | combine({ item[0]: item[1] | trim }) }}"
-  loop: "{{ _ldap_show_config.stdout_lines[3:-1] | map('regex_search', '\\| (\\S+)\\s+\\| (.*) \\|', '\\1', '\\2') | list }}"
+- name: 'Parse current LDAP config'
+  ansible.builtin.set_fact:
+    _ldap_config: "{{ _ldap_config | default({}) | ansible.builtin.combine({item[0]: item[1] | trim}) }}"
+  loop: "{{ _ldap_show_config.stdout_lines[3:-1] | map('ansible.builtin.regex_search', '\\| (\\S+)\\s+\\| (.*) \\|', '\\1', '\\2') | list }}"
   loop_control:
     label: "{{ item[0] }}"
   when: "_ldap_config_ids[i] is defined"
 
-- name: 'configure LDAP back end'
-  command: "/usr/local/sbin/occ --no-interaction ldap:set-config {{ _ldap_config_id | quote }} {{ item.key | quote }} {{ item.value | quote }}"
-  loop: "{{ backend | dict2items }}"
+- name: 'Configure LDAP back end'
+  ansible.builtin.command:
+    argv:
+      - '/usr/local/sbin/occ'
+      - --no-interaction
+      - ldap:set-config
+      - "{{ _ldap_config_id }}"
+      - "{{ item.key }}"
+      - "{{ item.value }}"
+  changed_when: true
+  loop: "{{ backend | ansible.builtin.dict2items }}"
   loop_control:
     label: "{{ item.key }} = {{ item.value }}"
   no_log: "{{ item.key | lower == 'ldapagentpassword' }}"
   when: "_ldap_config[item.key] | default != item.value | string"
 
-- name: 'test LDAP connection'
-  command: "/usr/local/sbin/occ --no-interaction ldap:test-config {{ _ldap_config_id | quote }}"
+- name: 'Test LDAP connection'
+  ansible.builtin.command:
+    argv:
+      - '/usr/local/sbin/occ'
+      - --no-interaction
+      - ldap:test-config
+      - "{{ _ldap_config_id }}"
   register: _ldap_test
   failed_when: "'The configuration is valid and the connection could be established!' not in _ldap_test.stdout"
   changed_when: false
   ignore_errors: true
 
-- name: 'activate LDAP connection'
-  command: "/usr/local/sbin/occ --no-interaction ldap:set-config {{ _ldap_config_id | quote }} ldapConfigurationActive 1"
+- name: 'Activate LDAP connection'
+  ansible.builtin.command:
+    argv:
+      - '/usr/local/sbin/occ'
+      - --no-interaction
+      - ldap:set-config
+      - "{{ _ldap_config_id }}"
+      - ldapConfigurationActive
+      - 1
+  changed_when: true
   when: "_ldap_test is not failed and backend['ldapConfigurationActive'] is not defined and _ldap_config['ldapConfigurationActive'] | default('0') == '0'"

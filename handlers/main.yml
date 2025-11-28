@@ -1,14 +1,14 @@
 ---
-- name: 'remove temporary directory'
-  file:
+- name: 'Remove temporary directory'
+  ansible.builtin.file:
     path: "{{ _tmpdir.path }}"
     state: absent
   diff: false
-  listen: 'nextcloud_remove_tmpdir'
+  listen: nextcloud_remove_tmpdir
 
 # This handler is a stand-in for the case where no external handlers listen for nextcloud_installed_or_updated
-- name: 'dummy handler'
-  debug:
+- name: 'Dummy handler'
+  ansible.builtin.debug:
     msg: 'this handler never runs'
   listen: nextcloud_installed_or_updated
   when: false

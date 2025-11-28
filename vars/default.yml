@@ -2,7 +2,7 @@
 nextcloud_has_pkg: false
 nextcloud_pkg_name: nextcloud
 nextcloud_app_pkg_name: {}
-nextcloud_gnupg_package: 'gnupg2'
+nextcloud_gnupg_package: gnupg2
 nextcloud_dependencies:
   - tar
   - "{{ nextcloud_gnupg_package }}"
